@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from plexapi.server import PlexServer
 
 # Plex config (replace with your actual values or set via environment variables)
@@ -12,6 +13,17 @@ movies = plex.library.section(LIBRARY_NAME).all()
 
 movie_data = []
 
+def guess_resolution(filename):
+    match = re.search(r'(\d{3,4}p)', filename, re.IGNORECASE)
+    return match.group(1).upper() if match else ""
+
+def guess_source(filename):
+    sources = ['WEBRip', 'WEBDL', 'BluRay', 'HDRip', 'HDTV', 'DVDRip']
+    for source in sources:
+        if source.lower() in filename.lower():
+            return source
+    return "Unknown"
+
 for movie in movies:
     try:
         media = movie.media[0]
@@ -20,15 +32,16 @@ for movie in movies:
         folder = os.path.dirname(file_path)
         filename = os.path.basename(file_path)
 
-        resolution = media.videoResolution or ""
-        source = media.videoSource or ""
-        video_codec = media.videoCodec or ""
-        container = media.container or ""
+        resolution = guess_resolution(filename)
+        source = guess_source(filename)
+        video_codec = getattr(media, 'videoCodec', "")
+        container = getattr(media, 'container', "")
         year = movie.year or ""
         imdb_id = movie.guid.split("://")[-1].split("?")[0] if "imdb" in movie.guid else ""
 
-        new_folder = f"{movie.title} ({year})"
-        new_filename = f"{movie.title} ({year}) {source}-{resolution}.{container}"
+        clean_title = re.sub(r'[\\/*?:"<>|]', '', movie.title).strip()
+        new_folder = f"{clean_title} ({year})"
+        new_filename = f"{clean_title} ({year}) {source}-{resolution}.{container}"
 
         movie_entry = {
             "title": movie.title,
